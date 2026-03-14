@@ -13,10 +13,19 @@ export async function postJson(path, body) {
     body: JSON.stringify(body)
   });
 
-  const data = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let data = {};
+
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (error) {
+    data = {};
+  }
 
   if (!response.ok) {
-    const message = data?.error || `Request failed with status ${response.status}`;
+    const message =
+      data?.error ||
+      (rawText ? `Request failed with status ${response.status}: ${rawText.slice(0, 180)}` : `Request failed with status ${response.status}`);
     throw new Error(message);
   }
 

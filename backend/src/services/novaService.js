@@ -37,6 +37,7 @@ export async function invokeNovaJson({ prompt, mockResponse }) {
   try {
     return safeJsonParse(modelText);
   } catch (error) {
+    console.error("Nova raw response parse failure. Raw text preview:", String(modelText || "").slice(0, 500));
     throw new Error(`Failed to parse Nova response as JSON: ${error.message}`);
   }
 }
