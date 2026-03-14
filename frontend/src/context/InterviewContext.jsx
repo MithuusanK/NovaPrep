@@ -2,7 +2,8 @@ import { createContext, useContext, useMemo, useState } from "react";
 import {
   evaluateAnswer,
   generateFinalSummary,
-  generateQuestion
+  generateQuestion,
+  parseResume
 } from "../services/interviewApi";
 
 const InterviewContext = createContext(null);
@@ -11,7 +12,8 @@ export function InterviewProvider({ children }) {
   const [setup, setSetup] = useState({
     role: "",
     interviewType: "behavioral",
-    difficulty: "entry"
+    difficulty: "entry",
+    parsedResume: null
   });
 
   const [session, setSession] = useState({
@@ -45,7 +47,8 @@ export function InterviewProvider({ children }) {
         role: setup.role,
         interviewType: setup.interviewType,
         difficulty: setup.difficulty,
-        previousQuestions: session.qaHistory.map((item) => item.question)
+        previousQuestions: session.qaHistory.map((item) => item.question),
+        parsedResume: setup.parsedResume || null
       });
 
       setCurrentQuestion(result);
@@ -68,7 +71,8 @@ export function InterviewProvider({ children }) {
         interviewType: setup.interviewType,
         difficulty: setup.difficulty,
         question,
-        answer
+        answer,
+        parsedResume: setup.parsedResume || null
       });
 
       setLatestFeedback(result);
@@ -91,10 +95,36 @@ export function InterviewProvider({ children }) {
         interviewType: setup.interviewType,
         difficulty: setup.difficulty,
         qaHistory: session.qaHistory,
-        evaluations: session.evaluations
+        evaluations: session.evaluations,
+        parsedResume: setup.parsedResume || null
       });
 
       setFinalSummary(result);
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function requestResumeParsing({ resumeText, resumeFile, targetRoleHint }) {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const result = await parseResume({
+        resumeText,
+        resumeFile,
+        targetRoleHint
+      });
+
+      setSetup((prev) => ({
+        ...prev,
+        parsedResume: result
+      }));
+
       return result;
     } catch (error) {
       setApiError(error.message);
@@ -129,7 +159,8 @@ export function InterviewProvider({ children }) {
       requestQuestion,
       requestAnswerEvaluation,
       requestFinalSummary,
-      addCompletedAnswer
+      addCompletedAnswer,
+      requestResumeParsing
     }),
     [
       setup,

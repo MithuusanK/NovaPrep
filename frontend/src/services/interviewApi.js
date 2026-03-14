@@ -1,4 +1,22 @@
-import { postJson } from "./apiClient";
+import { postFormData, postJson } from "./apiClient";
+
+export function parseResume({ resumeText, resumeFile, targetRoleHint }) {
+  if (resumeFile) {
+    const formData = new FormData();
+    formData.append("resumeFile", resumeFile);
+    formData.append("targetRoleHint", targetRoleHint || "");
+    if (resumeText) {
+      formData.append("resumeText", resumeText);
+    }
+
+    return postFormData("/api/parse-resume", formData);
+  }
+
+  return postJson("/api/parse-resume", {
+    resumeText: resumeText || "",
+    targetRoleHint: targetRoleHint || ""
+  });
+}
 
 /**
  * Integration points for all required interview backend routes.

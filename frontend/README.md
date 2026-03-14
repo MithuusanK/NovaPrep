@@ -29,3 +29,6 @@ Frontend runs on `http://localhost:5173` by default.
 - API calls will target `/api`, proxied to `http://localhost:4000`.
 - Step 3 includes routing and starter pages.
 - API integration begins in Step 4.
+- Setup page supports optional resume parsing:
+  - paste resume text, or
+  - upload `.pdf` / `.txt`

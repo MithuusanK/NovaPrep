@@ -1,9 +1,33 @@
 import {
+  buildParseResumePrompt,
   buildEvaluateAnswerPrompt,
   buildFinalSummaryPrompt,
   buildGenerateQuestionPrompt
 } from "../prompts/interviewPrompts.js";
 import { invokeNovaJson } from "./novaService.js";
+
+export async function parseResumeProfile(input) {
+  const prompt = buildParseResumePrompt(input);
+
+  return invokeNovaJson({
+    prompt,
+    mockResponse: {
+      candidateSummary:
+        "Entry-level frontend candidate with internship experience in React, debugging, and shipping user-facing features.",
+      suggestedRoles: ["Frontend Engineer Intern", "Junior Web Developer", "UI Engineer Intern"],
+      coreSkills: ["React", "JavaScript", "CSS", "Debugging", "Git"],
+      experienceHighlights: [
+        "Improved dashboard reporting workflow during internship.",
+        "Collaborated with mentor and team to deliver features on deadline."
+      ],
+      projectHighlights: [
+        "Built interactive web UI projects using React.",
+        "Shipped analytics and dashboard-related improvements."
+      ],
+      behavioralThemes: ["Ownership", "Adaptability", "Collaboration", "Problem-solving"]
+    }
+  });
+}
 
 export async function generateQuestionFeedback(input) {
   const prompt = buildGenerateQuestionPrompt(input);

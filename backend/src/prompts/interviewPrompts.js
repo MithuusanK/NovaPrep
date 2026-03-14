@@ -1,10 +1,44 @@
-export function buildGenerateQuestionPrompt({ role, interviewType, difficulty, previousQuestions }) {
+export function buildParseResumePrompt({ resumeText, targetRoleHint }) {
+  return `
+You are an interview preparation assistant.
+Parse the following resume and return a structured summary for interview customization.
+
+Target role hint:
+${targetRoleHint || "Not provided"}
+
+Resume text:
+${resumeText}
+
+Return JSON only using this exact schema:
+{
+  "candidateSummary": "string",
+  "suggestedRoles": ["string"],
+  "coreSkills": ["string"],
+  "experienceHighlights": ["string"],
+  "projectHighlights": ["string"],
+  "behavioralThemes": ["string"]
+}
+
+Rules:
+- Keep all outputs concise and useful for interview coaching.
+- Use only information from the resume text.
+- suggestedRoles should contain 2-5 relevant roles.
+- No markdown, no explanation outside JSON.
+`.trim();
+}
+
+export function buildGenerateQuestionPrompt({ role, interviewType, difficulty, previousQuestions, parsedResume }) {
+  const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
+
   return `
 You are a professional interviewer.
 Create ONE realistic interview question for this candidate profile:
 - Target role: ${role}
 - Interview type: ${interviewType}
 - Difficulty: ${difficulty}
+
+Parsed resume context (optional):
+${resumeContext}
 
 Avoid repeating these previous questions:
 ${JSON.stringify(previousQuestions)}
@@ -23,13 +57,18 @@ Rules:
 `.trim();
 }
 
-export function buildEvaluateAnswerPrompt({ role, interviewType, difficulty, question, answer }) {
+export function buildEvaluateAnswerPrompt({ role, interviewType, difficulty, question, answer, parsedResume }) {
+  const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
+
   return `
 You are an interview coach giving constructive, specific, and encouraging feedback.
 Candidate details:
 - Target role: ${role}
 - Interview type: ${interviewType}
 - Difficulty: ${difficulty}
+
+Parsed resume context (optional):
+${resumeContext}
 
 Interview question:
 ${question}
@@ -63,13 +102,18 @@ Rules:
 `.trim();
 }
 
-export function buildFinalSummaryPrompt({ role, interviewType, difficulty, qaHistory, evaluations }) {
+export function buildFinalSummaryPrompt({ role, interviewType, difficulty, qaHistory, evaluations, parsedResume }) {
+  const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
+
   return `
 You are an interview coach preparing a final session summary.
 Session details:
 - Target role: ${role}
 - Interview type: ${interviewType}
 - Difficulty: ${difficulty}
+
+Parsed resume context (optional):
+${resumeContext}
 
 Question and answer history:
 ${JSON.stringify(qaHistory)}

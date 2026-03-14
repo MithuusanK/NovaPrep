@@ -31,7 +31,32 @@ export async function invokeNovaJson({ prompt, mockResponse }) {
     }
   });
 
-  const response = await client.send(command);
+  let response;
+
+  try {
+    response = await client.send(command);
+  } catch (error) {
+    const message = String(error?.message || "");
+
+    if (message.includes("Could not load credentials")) {
+      const friendlyError = new Error(
+        "AWS credentials not found. Run `aws configure` and ensure Bedrock access is enabled."
+      );
+      friendlyError.status = 500;
+      throw friendlyError;
+    }
+
+    if (error?.name === "AccessDeniedException") {
+      const friendlyError = new Error(
+        "Access denied for Amazon Bedrock. Check IAM permissions and model access for Nova."
+      );
+      friendlyError.status = 403;
+      throw friendlyError;
+    }
+
+    throw error;
+  }
+
   const modelText = response?.output?.message?.content?.[0]?.text;
 
   try {
