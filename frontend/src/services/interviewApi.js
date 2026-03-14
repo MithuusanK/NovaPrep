@@ -32,3 +32,11 @@ export function evaluateAnswer(payload) {
 export function generateFinalSummary(payload) {
   return postJson("/api/final-summary", payload);
 }
+
+export function transcribeVoice(payload) {
+  return postJson("/api/voice/transcribe", payload);
+}
+
+export function speakVoice(payload) {
+  return postJson("/api/voice/speak", payload);
+}

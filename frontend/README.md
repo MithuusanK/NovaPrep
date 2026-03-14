@@ -32,3 +32,7 @@ Frontend runs on `http://localhost:5173` by default.
 - Setup page supports optional resume parsing:
   - paste resume text, or
   - upload `.pdf` / `.txt`
+- Voice mode MVP:
+  - AI speech output via Nova Sonic (`/api/voice/speak`)
+  - user speech transcription via Nova Sonic (`/api/voice/transcribe`)
+  - browser mic capture still requires a modern browser (Chrome/Edge recommended)

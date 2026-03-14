@@ -5,6 +5,7 @@ import {
   generateFinalSummaryFeedback
 } from "../services/interviewService.js";
 import { extractResumeText } from "../utils/extractResumeText.js";
+import { speakWithNovaSonic, transcribeWithNovaSonic } from "../services/voiceService.js";
 
 export async function parseResume(req, res, next) {
   try {
@@ -33,6 +34,50 @@ export async function parseResume(req, res, next) {
       resumeText,
       targetRoleHint
     });
+
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function transcribeVoice(req, res, next) {
+  try {
+    const audioBase64 = String(req.body?.audioBase64 || "").trim();
+
+    if (!audioBase64) {
+      return res.status(400).json({
+        error: "audioBase64 is required."
+      });
+    }
+
+    const result = await transcribeWithNovaSonic({ audioBase64 });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function speakVoice(req, res, next) {
+  try {
+    const text = String(req.body?.text || "").trim();
+    const voiceId = String(req.body?.voiceId || "").trim() || undefined;
+
+    if (!text) {
+      return res.status(400).json({
+        error: "text is required."
+      });
+    }
+
+    const result = await speakWithNovaSonic({ text, voiceId });
+
+    if (!result.audioBase64) {
+      return res.status(422).json({
+        code: "NO_AUDIO_OUTPUT",
+        error:
+          "Nova Sonic did not return audio for this request. This account/model path may support speech conversation but not pure text-to-speech in this endpoint."
+      });
+    }
 
     return res.json(result);
   } catch (error) {
