@@ -2,21 +2,33 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useInterview } from "../context/InterviewContext";
 
+const VOICES = [
+  { id: "Ruth",     engine: "generative", gender: "Female", accent: "US",      desc: "Warm & natural"       },
+  { id: "Matthew",  engine: "generative", gender: "Male",   accent: "US",      desc: "Clear & professional" },
+  { id: "Danielle", engine: "generative", gender: "Female", accent: "US",      desc: "Conversational"       },
+  { id: "Gregory",  engine: "generative", gender: "Male",   accent: "US",      desc: "Authoritative"        },
+  { id: "Joanna",   engine: "neural",     gender: "Female", accent: "US",      desc: "Polished"             },
+  { id: "Stephen",  engine: "neural",     gender: "Male",   accent: "US",      desc: "Friendly"             },
+  { id: "Amy",      engine: "neural",     gender: "Female", accent: "British", desc: "British accent"       },
+  { id: "Brian",    engine: "neural",     gender: "Male",   accent: "British", desc: "British accent"       },
+];
+
 function SetupPage() {
   const navigate = useNavigate();
   const { setup, setSetup, resetSession, requestResumeParsing, isLoading, apiError } = useInterview();
 
-  const [role, setRole]               = useState(setup.role);
+  const [role, setRole]                   = useState(setup.role);
   const [interviewType, setInterviewType] = useState(setup.interviewType);
-  const [difficulty, setDifficulty]   = useState(setup.difficulty);
-  const [resumeText, setResumeText]   = useState("");
-  const [resumeFile, setResumeFile]   = useState(null);
-  const [localError, setLocalError]   = useState("");
-  const [parseSuccess, setParseSuccess] = useState("");
+  const [difficulty, setDifficulty]       = useState(setup.difficulty);
+  const [voiceId, setVoiceId]             = useState(setup.voiceId || "Ruth");
+  const [resumeText, setResumeText]       = useState("");
+  const [resumeFile, setResumeFile]       = useState(null);
+  const [localError, setLocalError]       = useState("");
+  const [parseSuccess, setParseSuccess]   = useState("");
 
   function handleSubmit(event) {
     event.preventDefault();
-    setSetup((prev) => ({ ...prev, role: role.trim(), interviewType, difficulty }));
+    setSetup((prev) => ({ ...prev, role: role.trim(), interviewType, difficulty, voiceId }));
     resetSession();
     navigate("/interview");
   }
@@ -50,6 +62,8 @@ function SetupPage() {
     appearance: "none",
     cursor: "pointer"
   };
+
+  const selectedVoice = VOICES.find(v => v.id === voiceId) || VOICES[0];
 
   return (
     <div className="fade-up">
@@ -114,6 +128,61 @@ function SetupPage() {
             </div>
           </div>
 
+          {/* Voice selector */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#22d3ee", letterSpacing: "0.1em" }}>
+              AI Voice
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {VOICES.map(v => {
+                const isSelected = voiceId === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setVoiceId(v.id)}
+                    className="rounded-xl p-3 text-left transition-all"
+                    style={{
+                      background: isSelected ? "rgba(34,211,238,0.12)" : "rgba(6,13,30,0.6)",
+                      border: isSelected ? "1px solid rgba(34,211,238,0.5)" : "1px solid rgba(34,211,238,0.08)",
+                      cursor: "pointer",
+                      boxShadow: isSelected ? "0 0 12px rgba(34,211,238,0.1)" : "none"
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold" style={{ color: isSelected ? "#22d3ee" : "#e2f0ff" }}>
+                        {v.id}
+                      </span>
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded"
+                        style={{
+                          background: v.engine === "generative" ? "rgba(167,139,250,0.15)" : "rgba(34,211,238,0.1)",
+                          color: v.engine === "generative" ? "#a78bfa" : "#22d3ee",
+                          fontFamily: "JetBrains Mono, monospace",
+                          letterSpacing: "0.05em"
+                        }}
+                      >
+                        {v.engine === "generative" ? "GEN" : "NEU"}
+                      </span>
+                    </div>
+                    <div className="text-xs" style={{ color: isSelected ? "#67e8f9" : "#3d6080" }}>{v.desc}</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "#2d4a60" }}>{v.gender} · {v.accent}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Selected voice preview strip */}
+            <div
+              className="mt-2 rounded-lg px-3 py-2 flex items-center gap-2 text-xs"
+              style={{ background: "rgba(34,211,238,0.05)", border: "1px solid rgba(34,211,238,0.1)" }}
+            >
+              <span style={{ color: "#22d3ee" }}>▶</span>
+              <span style={{ color: "#7acbd8" }}>
+                Selected: <strong style={{ color: "#e2f0ff" }}>{selectedVoice.id}</strong> — {selectedVoice.desc} · {selectedVoice.gender} · {selectedVoice.accent} ({selectedVoice.engine})
+              </span>
+            </div>
+          </div>
+
           {/* Resume section */}
           <div
             className="rounded-2xl p-5 space-y-4"
@@ -133,23 +202,46 @@ function SetupPage() {
               style={{ resize: "vertical", minHeight: "80px" }}
             />
 
-            <div
-              className="rounded-xl p-3 flex items-center gap-3"
-              style={{ background: "rgba(34,211,238,0.04)", border: "1px dashed rgba(34,211,238,0.15)" }}
+            {/* Upload button — prominent, impossible to miss */}
+            <label
+              className="flex items-center gap-3 w-full cursor-pointer rounded-xl px-4 py-3 transition-all"
+              style={{
+                background: resumeFile ? "rgba(34,211,238,0.1)" : "rgba(34,211,238,0.06)",
+                border: resumeFile ? "1.5px solid rgba(34,211,238,0.5)" : "1.5px dashed rgba(34,211,238,0.35)",
+                boxShadow: resumeFile ? "0 0 14px rgba(34,211,238,0.12)" : "none"
+              }}
             >
-              <span style={{ color: "#22d3ee", fontSize: "0.9rem" }}>↑</span>
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="file"
-                  accept=".pdf,.txt,.md,text/plain,application/pdf"
-                  onChange={e => setResumeFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-                <span className="text-sm" style={{ color: resumeFile ? "#22d3ee" : "#4a6a80" }}>
-                  {resumeFile ? resumeFile.name : "Click to upload PDF or TXT"}
-                </span>
-              </label>
-            </div>
+              <span
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                style={{ background: "rgba(34,211,238,0.15)", color: "#22d3ee" }}
+              >
+                {resumeFile ? "✓" : "↑"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium" style={{ color: resumeFile ? "#22d3ee" : "#c8dff0" }}>
+                  {resumeFile ? resumeFile.name : "Upload Resume"}
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: "#3d6080" }}>
+                  {resumeFile ? "File ready to parse" : "PDF or TXT · Click to browse"}
+                </div>
+              </div>
+              {resumeFile && (
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); setResumeFile(null); }}
+                  className="flex-shrink-0 text-xs px-2 py-1 rounded"
+                  style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
+                >
+                  Remove
+                </button>
+              )}
+              <input
+                type="file"
+                accept=".pdf,.txt,.md,text/plain,application/pdf"
+                onChange={e => setResumeFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </label>
 
             <button
               type="button"
@@ -160,8 +252,8 @@ function SetupPage() {
               {isLoading ? "Parsing with Nova AI..." : "Parse Resume with Nova"}
             </button>
 
-            {localError && <p className="text-xs" style={{ color: "#fbbf24" }}>{localError}</p>}
-            {apiError   && <p className="text-xs" style={{ color: "#f87171" }}>{apiError}</p>}
+            {localError   && <p className="text-xs" style={{ color: "#fbbf24" }}>{localError}</p>}
+            {apiError     && <p className="text-xs" style={{ color: "#f87171" }}>{apiError}</p>}
             {parseSuccess && <p className="text-xs" style={{ color: "#34d399" }}>{parseSuccess}</p>}
           </div>
 

@@ -9,5 +9,7 @@ export const env = {
   NOVA_MODEL_ID: process.env.NOVA_MODEL_ID || "amazon.nova-lite-v1:0",
   NOVA_SONIC_MODEL_ID: process.env.NOVA_SONIC_MODEL_ID || "amazon.nova-2-sonic-v1:0",
   NOVA_SONIC_VOICE_ID: process.env.NOVA_SONIC_VOICE_ID || "matthew",
+  POLLY_VOICE_ID: process.env.POLLY_VOICE_ID || "Ruth",
+  POLLY_ENGINE: process.env.POLLY_ENGINE || "generative",
   USE_MOCK_AI: String(process.env.USE_MOCK_AI || "false").toLowerCase() === "true"
 };

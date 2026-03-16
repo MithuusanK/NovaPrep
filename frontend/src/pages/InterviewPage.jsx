@@ -89,7 +89,7 @@ function InterviewPage() {
       setIsVoiceLoading(true);
       stopPlaybackAudio();
 
-      const result = await speakVoice({ text: currentQuestion.question });
+      const result = await speakVoice({ text: currentQuestion.question, voiceId: setup.voiceId });
       if (!result?.audioBase64) throw new Error("Nova Sonic did not return audio for this question.");
 
       const sampleRate = Number(result?.audioConfig?.sampleRateHertz || 24000);

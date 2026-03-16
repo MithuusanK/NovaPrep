@@ -38,7 +38,7 @@ function RubricBar({ label, value }) {
 
 function FeedbackPage() {
   const navigate = useNavigate();
-  const { latestFeedback, session } = useInterview();
+  const { latestFeedback, session, setup } = useInterview();
   const playbackAudioRef = useRef(null);
   const playbackUrlRef   = useRef("");
 
@@ -76,7 +76,7 @@ function FeedbackPage() {
       setVoiceError("");
       setIsVoiceLoading(true);
       stopPlaybackAudio();
-      const result = await speakVoice({ text });
+      const result = await speakVoice({ text, voiceId: setup.voiceId });
       if (!result?.audioBase64) throw new Error("No audio returned.");
       const sampleRate = Number(result?.audioConfig?.sampleRateHertz || 24000);
       const audioUrl = pcm16Base64ToWavUrl(result.audioBase64, { sampleRate });

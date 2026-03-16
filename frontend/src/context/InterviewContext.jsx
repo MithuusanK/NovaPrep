@@ -13,7 +13,8 @@ export function InterviewProvider({ children }) {
     role: "",
     interviewType: "behavioral",
     difficulty: "entry",
-    parsedResume: null
+    parsedResume: null,
+    voiceId: "Ruth"
   });
 
   const [session, setSession] = useState({

@@ -3,6 +3,7 @@ import {
   InvokeModelWithBidirectionalStreamCommand
 } from "@aws-sdk/client-bedrock-runtime";
 import { env } from "../config/env.js";
+import { synthesizeSpeech } from "./pollyService.js";
 
 const client = new BedrockRuntimeClient({ region: env.AWS_REGION });
 
@@ -491,16 +492,12 @@ export async function transcribeWithNovaSonic({ audioBase64 }) {
 }
 
 export async function speakWithNovaSonic({ text, voiceId }) {
-  const result = await invokeNovaSonic({
-    systemPrompt:
-      "You are a professional interviewer voice assistant. Speak the user's provided text clearly and naturally.",
-    userText: text,
-    includeAudioOutput: true,
-    voiceId
-  });
+  // Use Amazon Polly for TTS — far more natural-sounding than Nova Sonic for speech generation.
+  // Nova Sonic is kept only for transcription (audio → text) where it excels.
+  const result = await synthesizeSpeech({ text, voiceId });
 
   return {
-    text: result.textOutput || text,
+    text,
     audioBase64: result.audioBase64,
     audioConfig: result.audioConfig
   };
