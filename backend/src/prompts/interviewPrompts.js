@@ -166,6 +166,57 @@ Rules:
 `.trim();
 }
 
+export function buildInterviewerResponsePrompt({
+  role,
+  interviewType,
+  difficulty,
+  question,
+  answer,
+  evaluation,
+  nextQuestion,
+  parsedResume
+}) {
+  const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
+
+  return `
+You are a professional interviewer running a realistic mock interview.
+Write a natural, human-sounding response after the candidate answer, then transition to the next question.
+
+Candidate details:
+- Target role: ${role}
+- Interview type: ${interviewType}
+- Difficulty: ${difficulty}
+
+Parsed resume context (optional):
+${resumeContext}
+
+Current interview question:
+${question}
+
+Candidate answer:
+${answer}
+
+Evaluation summary for this answer:
+${JSON.stringify(evaluation)}
+
+Next question to ask:
+${JSON.stringify(nextQuestion)}
+
+Return JSON only using this exact schema:
+{
+  "interviewerResponse": "string"
+}
+
+Rules:
+- interviewerResponse must be 2-4 sentences.
+- It should sound like a real interviewer: acknowledge something specific, give one concise coaching point, then transition to the next topic.
+- Keep tone encouraging, specific, and professional.
+- Do not include bullet points, markdown, or labels.
+- Do not repeat the full next question verbatim in this field.
+- No explanation outside JSON.
+`.trim();
+}
+
 export function buildFinalSummaryPrompt({ role, interviewType, difficulty, qaHistory, evaluations, parsedResume }) {
   const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
 

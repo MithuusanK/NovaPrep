@@ -1,5 +1,6 @@
 import {
   buildParseResumePrompt,
+  buildInterviewerResponsePrompt,
   buildEvaluateAnswerPrompt,
   buildFinalSummaryPrompt,
   buildGenerateQuestionPrompt
@@ -81,7 +82,7 @@ function toConversationSnippet(text) {
   return clean.endsWith(".") ? clean : `${clean}.`;
 }
 
-function buildInterviewerResponse({ evaluation, nextQuestion }) {
+function buildInterviewerResponseFallback({ evaluation, nextQuestion }) {
   const primaryStrength = toConversationSnippet(evaluation?.strengths?.[0]);
   const primaryWeakness = toConversationSnippet(evaluation?.weaknesses?.[0]);
   const nextFocus = String(nextQuestion?.focusArea || "").trim();
@@ -98,6 +99,18 @@ function buildInterviewerResponse({ evaluation, nextQuestion }) {
     : "Let us go a level deeper with a follow-up question.";
 
   return [opener, strengthLine, coachingLine, transitionLine].filter(Boolean).join(" ");
+}
+
+export async function generateInterviewerResponseFeedback(input) {
+  const prompt = buildInterviewerResponsePrompt(input);
+
+  return invokeNovaJson({
+    prompt,
+    mockResponse: {
+      interviewerResponse:
+        "Thanks for sharing that example. You explained your actions clearly, and your ownership came through well. Next time, quantify the impact a bit more so the result is stronger."
+    }
+  });
 }
 
 export async function processConversationTurn(input) {
@@ -126,8 +139,23 @@ export async function processConversationTurn(input) {
     conversationHistory: updatedConversationHistory
   });
 
+  let interviewerResponse = "";
+
+  try {
+    const interviewerResult = await generateInterviewerResponseFeedback({
+      ...input,
+      evaluation,
+      nextQuestion
+    });
+    interviewerResponse = String(interviewerResult?.interviewerResponse || "").trim();
+  } catch {
+    interviewerResponse = "";
+  }
+
   return {
-    interviewerResponse: buildInterviewerResponse({ evaluation, nextQuestion }),
+    interviewerResponse:
+      interviewerResponse ||
+      buildInterviewerResponseFallback({ evaluation, nextQuestion }),
     evaluation,
     nextQuestion
   };

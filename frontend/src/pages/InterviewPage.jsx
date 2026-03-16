@@ -38,6 +38,7 @@ function InterviewPage() {
   const audioChunksRef = useRef([]);
   const playbackAudioRef = useRef(null);
   const playbackUrlRef = useRef("");
+  const suppressNextAutoQuestionSpeechRef = useRef(false);
 
   const [answer, setAnswer] = useState("");
   const [localError, setLocalError] = useState("");
@@ -111,10 +112,10 @@ function InterviewPage() {
     [stopMicCapture, stopPlaybackAudio]
   );
 
-  const handleSpeakQuestion = useCallback(async () => {
-    if (!currentQuestion?.question) {
-      setVoiceError("No question available to speak yet.");
-      return;
+  const speakTextWithNovaVoice = useCallback(async (text, fallbackMessage) => {
+    const cleanText = String(text || "").trim();
+    if (!cleanText) {
+      return false;
     }
 
     try {
@@ -122,9 +123,9 @@ function InterviewPage() {
       setIsVoiceLoading(true);
       stopPlaybackAudio();
 
-      const result = await speakVoice({ text: currentQuestion.question, voiceId: setup.voiceId });
+      const result = await speakVoice({ text: cleanText, voiceId: setup.voiceId });
       if (!result?.audioBase64) {
-        throw new Error("Nova Sonic did not return audio for this question.");
+        throw new Error("Nova Sonic did not return audio for this message.");
       }
 
       const sampleRate = Number(result?.audioConfig?.sampleRateHertz || 24000);
@@ -140,22 +141,41 @@ function InterviewPage() {
         setVoiceError("Could not play Nova audio.");
       };
       await audio.play();
+      return true;
     } catch (error) {
-      const usedFallback = speakFallbackInBrowser(currentQuestion?.question, () => setIsSpeaking(false));
+      const usedFallback = speakFallbackInBrowser(cleanText, () => setIsSpeaking(false));
       if (usedFallback) {
         setIsSpeaking(true);
-        setVoiceError("Using browser voice fallback for this question.");
+        setVoiceError(fallbackMessage || "Using browser voice fallback.");
+        return true;
       } else {
         setIsSpeaking(false);
-        setVoiceError(error.message || "Unable to speak the question.");
+        setVoiceError(error.message || "Unable to speak this message.");
+        return false;
       }
     } finally {
       setIsVoiceLoading(false);
     }
-  }, [currentQuestion, setup.voiceId, stopPlaybackAudio]);
+  }, [setup.voiceId, stopPlaybackAudio]);
+
+  const handleSpeakQuestion = useCallback(async () => {
+    if (!currentQuestion?.question) {
+      setVoiceError("No question available to speak yet.");
+      return;
+    }
+
+    await speakTextWithNovaVoice(
+      currentQuestion.question,
+      "Using browser voice fallback for this question."
+    );
+  }, [currentQuestion, speakTextWithNovaVoice]);
 
   useEffect(() => {
     if (!autoSpeakQuestion || !currentQuestion?.question) return;
+    if (suppressNextAutoQuestionSpeechRef.current) {
+      suppressNextAutoQuestionSpeechRef.current = false;
+      return;
+    }
     handleSpeakQuestion();
   }, [autoSpeakQuestion, currentQuestion?.question, handleSpeakQuestion]);
 
@@ -208,13 +228,36 @@ function InterviewPage() {
     }
 
     try {
-      await requestConversationTurn({
+      suppressNextAutoQuestionSpeechRef.current = true;
+
+      const result = await requestConversationTurn({
         question: currentQuestion.question,
         answer: trimmedAnswer
       });
 
       setAnswer("");
+
+      if (autoSpeakQuestion) {
+        const interviewerResponse = String(result?.interviewerResponse || "").trim();
+        const nextQuestionText = String(result?.nextQuestion?.question || "").trim();
+        const combinedVoiceScript = [interviewerResponse, nextQuestionText ? `Next question. ${nextQuestionText}` : ""]
+          .filter(Boolean)
+          .join(" ");
+
+        if (combinedVoiceScript) {
+          await speakTextWithNovaVoice(
+            combinedVoiceScript,
+            "Using browser voice fallback for the interviewer response."
+          );
+        } else {
+          suppressNextAutoQuestionSpeechRef.current = false;
+          await handleSpeakQuestion();
+        }
+      } else {
+        suppressNextAutoQuestionSpeechRef.current = false;
+      }
     } catch {
+      suppressNextAutoQuestionSpeechRef.current = false;
       // apiError already set in context
     }
   }
