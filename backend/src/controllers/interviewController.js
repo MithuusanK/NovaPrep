@@ -2,7 +2,8 @@ import {
   parseResumeProfile,
   generateQuestionFeedback,
   evaluateAnswerFeedback,
-  generateFinalSummaryFeedback
+  generateFinalSummaryFeedback,
+  processConversationTurn
 } from "../services/interviewService.js";
 import { extractResumeText } from "../utils/extractResumeText.js";
 import { speakWithNovaSonic, transcribeWithNovaSonic } from "../services/voiceService.js";
@@ -87,7 +88,14 @@ export async function speakVoice(req, res, next) {
 
 export async function generateQuestion(req, res, next) {
   try {
-    const { role, interviewType, difficulty, previousQuestions = [], parsedResume = null } = req.body;
+    const {
+      role,
+      interviewType,
+      difficulty,
+      previousQuestions = [],
+      conversationHistory = [],
+      parsedResume = null
+    } = req.body;
 
     if (!role || !interviewType || !difficulty) {
       return res.status(400).json({
@@ -100,6 +108,7 @@ export async function generateQuestion(req, res, next) {
       interviewType,
       difficulty,
       previousQuestions,
+      conversationHistory,
       parsedResume
     });
 
@@ -125,6 +134,41 @@ export async function evaluateAnswer(req, res, next) {
       difficulty,
       question,
       answer,
+      parsedResume
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function conversationTurn(req, res, next) {
+  try {
+    const {
+      role,
+      interviewType,
+      difficulty,
+      question,
+      answer,
+      conversationHistory = [],
+      parsedResume = null
+    } = req.body;
+
+    if (!role || !interviewType || !difficulty || !question || !answer) {
+      return res.status(400).json({
+        error:
+          "role, interviewType, difficulty, question, and answer are required."
+      });
+    }
+
+    const result = await processConversationTurn({
+      role,
+      interviewType,
+      difficulty,
+      question,
+      answer,
+      conversationHistory,
       parsedResume
     });
 

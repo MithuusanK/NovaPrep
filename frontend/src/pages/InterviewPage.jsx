@@ -5,9 +5,13 @@ import { audioBlobToPcm16Base64, pcm16Base64ToWavUrl } from "../services/audioCo
 import { speakVoice, transcribeVoice } from "../services/interviewApi";
 
 function speakFallbackInBrowser(text, onEnd = () => {}) {
-  if (typeof window === "undefined" || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
+  if (typeof window === "undefined" || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+    return false;
+  }
+
   const clean = String(text || "").trim();
   if (!clean) return false;
+
   const utterance = new window.SpeechSynthesisUtterance(clean);
   utterance.lang = "en-US";
   utterance.onend = onEnd;
@@ -19,7 +23,9 @@ function speakFallbackInBrowser(text, onEnd = () => {}) {
 function WaveBars() {
   return (
     <div className="flex items-center gap-1 h-7">
-      {[1,2,3,4,5].map(i => <span key={i} className="wave-bar" />)}
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className="wave-bar" />
+      ))}
     </div>
   );
 }
@@ -27,39 +33,55 @@ function WaveBars() {
 function InterviewPage() {
   const navigate = useNavigate();
   const initialRequestDoneRef = useRef(false);
-  const mediaRecorderRef      = useRef(null);
-  const mediaStreamRef        = useRef(null);
-  const audioChunksRef        = useRef([]);
-  const playbackAudioRef      = useRef(null);
-  const playbackUrlRef        = useRef("");
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const playbackAudioRef = useRef(null);
+  const playbackUrlRef = useRef("");
 
-  const [answer, setAnswer]               = useState("");
-  const [localError, setLocalError]       = useState("");
-  const [voiceError, setVoiceError]       = useState("");
-  const [isRecording, setIsRecording]     = useState(false);
-  const [isSpeaking, setIsSpeaking]       = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [localError, setLocalError] = useState("");
+  const [voiceError, setVoiceError] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [autoSpeakQuestion, setAutoSpeakQuestion] = useState(true);
 
   const {
-    setup, currentQuestion, latestFeedback, setLatestFeedback,
-    isLoading, apiError, requestQuestion, requestAnswerEvaluation, addCompletedAnswer
+    setup,
+    session,
+    currentQuestion,
+    latestFeedback,
+    setLatestFeedback,
+    isLoading,
+    apiError,
+    requestQuestion,
+    requestConversationTurn
   } = useInterview();
 
   const mediaRecorderSupported = typeof window !== "undefined" && typeof window.MediaRecorder !== "undefined";
 
+  const recentTurns = session.qaHistory
+    .map((item, index) => ({
+      question: item.question,
+      answer: item.answer,
+      interviewerResponse: item.interviewerResponse,
+      score: session.evaluations[index]?.score
+    }))
+    .slice(-3);
+
   const stopPlaybackAudio = useCallback(() => {
-    // Stop HTML5 audio
     if (playbackAudioRef.current) {
       playbackAudioRef.current.pause();
       playbackAudioRef.current.currentTime = 0;
       playbackAudioRef.current = null;
     }
+
     if (playbackUrlRef.current) {
       URL.revokeObjectURL(playbackUrlRef.current);
       playbackUrlRef.current = "";
     }
-    // Stop browser TTS fallback
+
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
   }, []);
@@ -68,8 +90,9 @@ function InterviewPage() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
+
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
     }
   }, []);
@@ -80,17 +103,29 @@ function InterviewPage() {
     requestQuestion().catch(() => {});
   }, [setup.role, currentQuestion, requestQuestion]);
 
-  useEffect(() => () => { stopMicCapture(); stopPlaybackAudio(); }, [stopMicCapture, stopPlaybackAudio]);
+  useEffect(
+    () => () => {
+      stopMicCapture();
+      stopPlaybackAudio();
+    },
+    [stopMicCapture, stopPlaybackAudio]
+  );
 
   const handleSpeakQuestion = useCallback(async () => {
-    if (!currentQuestion?.question) { setVoiceError("No question available to speak yet."); return; }
+    if (!currentQuestion?.question) {
+      setVoiceError("No question available to speak yet.");
+      return;
+    }
+
     try {
       setVoiceError("");
       setIsVoiceLoading(true);
       stopPlaybackAudio();
 
       const result = await speakVoice({ text: currentQuestion.question, voiceId: setup.voiceId });
-      if (!result?.audioBase64) throw new Error("Nova Sonic did not return audio for this question.");
+      if (!result?.audioBase64) {
+        throw new Error("Nova Sonic did not return audio for this question.");
+      }
 
       const sampleRate = Number(result?.audioConfig?.sampleRateHertz || 24000);
       const audioUrl = pcm16Base64ToWavUrl(result.audioBase64, { sampleRate });
@@ -100,7 +135,10 @@ function InterviewPage() {
       playbackAudioRef.current = audio;
       setIsSpeaking(true);
       audio.onended = () => setIsSpeaking(false);
-      audio.onerror = () => { setIsSpeaking(false); setVoiceError("Could not play Nova audio."); };
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        setVoiceError("Could not play Nova audio.");
+      };
       await audio.play();
     } catch (error) {
       const usedFallback = speakFallbackInBrowser(currentQuestion?.question, () => setIsSpeaking(false));
@@ -114,7 +152,7 @@ function InterviewPage() {
     } finally {
       setIsVoiceLoading(false);
     }
-  }, [currentQuestion, stopPlaybackAudio]);
+  }, [currentQuestion, setup.voiceId, stopPlaybackAudio]);
 
   useEffect(() => {
     if (!autoSpeakQuestion || !currentQuestion?.question) return;
@@ -124,86 +162,147 @@ function InterviewPage() {
   if (!setup.role) {
     return (
       <div className="fade-up rounded-2xl p-8 text-center card-glow">
-        <p className="mb-4" style={{ color: "#7ba3c8" }}>Set up your interview first.</p>
-        <Link to="/setup" className="btn-ghost text-sm px-5 py-2 inline-block">Go to Setup</Link>
+        <p className="mb-4" style={{ color: "#7ba3c8" }}>
+          Set up your interview first.
+        </p>
+        <Link to="/setup" className="btn-ghost text-sm px-5 py-2 inline-block">
+          Go to Setup
+        </Link>
       </div>
     );
   }
 
   async function handleGenerateQuestion() {
-    setLocalError(""); setVoiceError(""); setLatestFeedback(null); setAnswer("");
-    stopMicCapture(); stopPlaybackAudio(); setIsRecording(false);
-    try { await requestQuestion(); } catch {}
+    setLocalError("");
+    setVoiceError("");
+    setLatestFeedback(null);
+    setAnswer("");
+    stopMicCapture();
+    stopPlaybackAudio();
+    setIsRecording(false);
+
+    try {
+      await requestQuestion();
+    } catch {
+      // apiError already set in context
+    }
   }
 
   async function handleSubmitAnswer(event) {
     event.preventDefault();
-    setLocalError(""); setVoiceError("");
-    stopMicCapture(); setIsRecording(false);
+    setLocalError("");
+    setVoiceError("");
+    stopMicCapture();
+    setIsRecording(false);
+
     const trimmedAnswer = answer.trim();
-    if (!currentQuestion?.question) { setLocalError("No question loaded yet."); return; }
-    if (!trimmedAnswer) { setLocalError("Please type or record an answer before submitting."); return; }
+
+    if (!currentQuestion?.question) {
+      setLocalError("No question loaded yet.");
+      return;
+    }
+
+    if (!trimmedAnswer) {
+      setLocalError("Please type or record an answer before submitting.");
+      return;
+    }
+
     try {
-      const evaluation = await requestAnswerEvaluation({ question: currentQuestion.question, answer: trimmedAnswer });
-      addCompletedAnswer({ question: currentQuestion.question, answer: trimmedAnswer, evaluation });
-    } catch {}
+      await requestConversationTurn({
+        question: currentQuestion.question,
+        answer: trimmedAnswer
+      });
+
+      setAnswer("");
+    } catch {
+      // apiError already set in context
+    }
   }
 
   async function handleStartRecording() {
-    if (!mediaRecorderSupported) { setVoiceError("Voice recording not supported in this browser."); return; }
+    if (!mediaRecorderSupported) {
+      setVoiceError("Voice recording not supported in this browser.");
+      return;
+    }
+
     try {
       setVoiceError("");
       stopPlaybackAudio();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       audioChunksRef.current = [];
 
       const preferredMimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-      const selectedMimeType = preferredMimeTypes.find(m => window.MediaRecorder.isTypeSupported?.(m));
+      const selectedMimeType = preferredMimeTypes.find((m) => window.MediaRecorder.isTypeSupported?.(m));
+
       const recorder = selectedMimeType
         ? new window.MediaRecorder(stream, { mimeType: selectedMimeType })
         : new window.MediaRecorder(stream);
 
-      recorder.ondataavailable = e => { if (e.data?.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.ondataavailable = (e) => {
+        if (e.data?.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
 
       recorder.onstop = async () => {
         setIsRecording(false);
         setIsVoiceLoading(true);
+
         try {
           const recordedBlob = new Blob(audioChunksRef.current, { type: selectedMimeType || "audio/webm" });
-          if (!recordedBlob.size) throw new Error("No audio captured. Please try again.");
+          if (!recordedBlob.size) {
+            throw new Error("No audio captured. Please try again.");
+          }
+
           const audioBase64 = await audioBlobToPcm16Base64(recordedBlob, { targetSampleRate: 16000 });
           const result = await transcribeVoice({ audioBase64 });
           const transcript = String(result?.transcript || "").trim();
-          if (!transcript) throw new Error("No transcript returned. Please try again.");
-          setAnswer(prev => `${prev.trim()} ${transcript}`.trim());
+
+          if (!transcript) {
+            throw new Error("No transcript returned. Please try again.");
+          }
+
+          setAnswer((prev) => `${prev.trim()} ${transcript}`.trim());
         } catch (error) {
           setVoiceError(error.message || "Could not transcribe audio.");
         } finally {
           setIsVoiceLoading(false);
-          if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach(t => t.stop()); mediaStreamRef.current = null; }
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+            mediaStreamRef.current = null;
+          }
           audioChunksRef.current = [];
           mediaRecorderRef.current = null;
         }
       };
 
-      recorder.onerror = () => { setIsRecording(false); setVoiceError("Recording failed. Please try again."); };
+      recorder.onerror = () => {
+        setIsRecording(false);
+        setVoiceError("Recording failed. Please try again.");
+      };
+
       mediaRecorderRef.current = recorder;
       recorder.start(250);
       setIsRecording(true);
     } catch (error) {
       setIsRecording(false);
       setVoiceError(error.message || "Could not start recording.");
-      if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach(t => t.stop()); mediaStreamRef.current = null; }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
     }
   }
 
-  function handleStopRecording() { stopMicCapture(); setIsRecording(false); }
+  function handleStopRecording() {
+    stopMicCapture();
+    setIsRecording(false);
+  }
 
   return (
     <div className="fade-up space-y-4">
-
-      {/* Session context bar */}
       <div
         className="rounded-2xl px-5 py-3 flex items-center gap-6 text-xs"
         style={{ background: "rgba(10,22,40,0.7)", border: "1px solid rgba(34,211,238,0.08)" }}
@@ -212,39 +311,110 @@ function InterviewPage() {
         <span className="font-medium text-white">{setup.role}</span>
         <span className="w-px h-4" style={{ background: "rgba(34,211,238,0.1)" }} />
         <span style={{ color: "#3d6080" }}>Type</span>
-        <span className="font-medium capitalize" style={{ color: "#22d3ee" }}>{setup.interviewType}</span>
+        <span className="font-medium capitalize" style={{ color: "#22d3ee" }}>
+          {setup.interviewType}
+        </span>
         <span className="w-px h-4" style={{ background: "rgba(34,211,238,0.1)" }} />
         <span style={{ color: "#3d6080" }}>Level</span>
-        <span className="font-medium capitalize" style={{ color: "#67e8f9" }}>{setup.difficulty}</span>
+        <span className="font-medium capitalize" style={{ color: "#67e8f9" }}>
+          {setup.difficulty}
+        </span>
       </div>
 
-      {/* Error banners */}
       {apiError && (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5" }}>
+        <div
+          className="rounded-xl px-4 py-3 text-sm"
+          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5" }}
+        >
           {apiError}
         </div>
       )}
+
       {localError && (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#fde68a" }}>
+        <div
+          className="rounded-xl px-4 py-3 text-sm"
+          style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#fde68a" }}
+        >
           {localError}
         </div>
       )}
+
       {voiceError && (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", color: "#67e8f9" }}>
+        <div
+          className="rounded-xl px-4 py-3 text-sm"
+          style={{ background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.15)", color: "#67e8f9" }}
+        >
           {voiceError}
         </div>
       )}
 
-      {/* Question card */}
+      {recentTurns.length > 0 && (
+        <div
+          className="rounded-3xl p-5 space-y-3"
+          style={{ background: "rgba(10,22,40,0.85)", border: "1px solid rgba(34,211,238,0.08)", backdropFilter: "blur(8px)" }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">Conversation So Far</h3>
+            <span className="text-xs" style={{ color: "#3d6080" }}>
+              Last {recentTurns.length} turn{recentTurns.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          {recentTurns.map((turn, index) => (
+            <div key={`${turn.question}-${index}`} className="space-y-2">
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{ background: "rgba(34,211,238,0.07)", border: "1px solid rgba(34,211,238,0.15)", color: "#cffafe" }}
+              >
+                <p className="text-xs mb-1" style={{ color: "#67e8f9" }}>
+                  Interviewer Question
+                </p>
+                <p>{turn.question}</p>
+              </div>
+
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "#dbeafe" }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs" style={{ color: "#93c5fd" }}>
+                    Your Answer
+                  </p>
+                  {typeof turn.score === "number" && (
+                    <span className="text-xs" style={{ color: "#67e8f9" }}>
+                      Score {turn.score}/100
+                    </span>
+                  )}
+                </div>
+                <p className="line-clamp-4">{turn.answer}</p>
+              </div>
+
+              {turn.interviewerResponse && (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{ background: "rgba(34,211,238,0.04)", border: "1px solid rgba(34,211,238,0.1)", color: "#a5f3fc" }}
+                >
+                  <p className="text-xs mb-1" style={{ color: "#22d3ee" }}>
+                    Interviewer Response
+                  </p>
+                  <p>{turn.interviewerResponse}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
         className="rounded-3xl p-6"
         style={{ background: "rgba(10,22,40,0.9)", border: "1px solid rgba(34,211,238,0.12)", backdropFilter: "blur(8px)" }}
       >
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-white">Question</h3>
+            <h3 className="font-semibold text-white">Current Interviewer Question</h3>
             {isSpeaking && <WaveBars />}
           </div>
+
           <div className="flex items-center gap-2">
             <span className="nova-badge">Nova Voice</span>
             <button
@@ -253,7 +423,7 @@ function InterviewPage() {
               disabled={isLoading || isVoiceLoading}
               className="btn-ghost text-xs px-3 py-1.5"
             >
-              {isLoading ? "Loading…" : "New Question"}
+              {isLoading ? "Loading..." : "Manual Next Question"}
             </button>
             <button
               type="button"
@@ -264,11 +434,11 @@ function InterviewPage() {
                 background: isSpeaking ? "rgba(239,68,68,0.1)" : "rgba(34,211,238,0.1)",
                 border: isSpeaking ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(34,211,238,0.3)",
                 color: isSpeaking ? "#fca5a5" : "#22d3ee",
-                opacity: (isVoiceLoading || !currentQuestion?.question) ? 0.4 : 1,
-                cursor: (isVoiceLoading || !currentQuestion?.question) ? "not-allowed" : "pointer"
+                opacity: isVoiceLoading || !currentQuestion?.question ? 0.4 : 1,
+                cursor: isVoiceLoading || !currentQuestion?.question ? "not-allowed" : "pointer"
               }}
             >
-              {isVoiceLoading ? "Loading…" : isSpeaking ? "■ Stop" : "▶ Speak"}
+              {isVoiceLoading ? "Loading..." : isSpeaking ? "Stop Voice" : "Speak"}
             </button>
           </div>
         </div>
@@ -278,22 +448,23 @@ function InterviewPage() {
             <p className="text-base leading-relaxed text-white mb-3">{currentQuestion.question}</p>
             {currentQuestion.focusArea && (
               <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: "#3d6080" }}>Focus:</span>
+                <span className="text-xs" style={{ color: "#3d6080" }}>
+                  Focus:
+                </span>
                 <span className="nova-badge">{currentQuestion.focusArea}</span>
               </div>
             )}
           </div>
         ) : (
           <p className="text-sm" style={{ color: "#2d4a60" }}>
-            {isLoading ? "Generating question…" : "Click New Question to begin."}
+            {isLoading ? "Generating question..." : "Click Manual Next Question to begin."}
           </p>
         )}
 
-        {/* Auto-speak toggle */}
         <div className="mt-4 pt-4 flex items-center gap-2" style={{ borderTop: "1px solid rgba(34,211,238,0.06)" }}>
           <button
             type="button"
-            onClick={() => setAutoSpeakQuestion(v => !v)}
+            onClick={() => setAutoSpeakQuestion((v) => !v)}
             className="flex items-center gap-2 text-xs"
             style={{ color: autoSpeakQuestion ? "#22d3ee" : "#3d6080", background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
@@ -311,7 +482,6 @@ function InterviewPage() {
         </div>
       </div>
 
-      {/* Answer form */}
       <div
         className="rounded-3xl p-6"
         style={{ background: "rgba(10,22,40,0.9)", border: "1px solid rgba(34,211,238,0.08)", backdropFilter: "blur(8px)" }}
@@ -330,11 +500,11 @@ function InterviewPage() {
                   background: isRecording ? "rgba(239,68,68,0.15)" : "rgba(34,211,238,0.1)",
                   border: isRecording ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(34,211,238,0.25)",
                   color: isRecording ? "#fca5a5" : "#67e8f9",
-                  opacity: (isLoading || isVoiceLoading || !mediaRecorderSupported) ? 0.4 : 1,
-                  cursor: (isLoading || isVoiceLoading || !mediaRecorderSupported) ? "not-allowed" : "pointer"
+                  opacity: isLoading || isVoiceLoading || !mediaRecorderSupported ? 0.4 : 1,
+                  cursor: isLoading || isVoiceLoading || !mediaRecorderSupported ? "not-allowed" : "pointer"
                 }}
               >
-                {isRecording ? "■ Stop Recording" : "⏺ Record Voice"}
+                {isRecording ? "Stop Recording" : "Record Voice"}
               </button>
             </div>
           </div>
@@ -342,15 +512,15 @@ function InterviewPage() {
           {isVoiceLoading && (
             <div className="mb-3 text-xs flex items-center gap-2" style={{ color: "#22d3ee" }}>
               <WaveBars />
-              <span>Transcribing with Nova Sonic…</span>
+              <span>Transcribing with Nova Sonic...</span>
             </div>
           )}
 
           <textarea
             rows={6}
             value={answer}
-            onChange={e => setAnswer(e.target.value)}
-            placeholder={isRecording ? "Recording… click Stop when done." : "Type your answer, or use Record Voice above."}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder={isRecording ? "Recording... click Stop when done." : "Type your answer, or use Record Voice above."}
             className="input-nova mb-4"
             style={{ resize: "vertical", minHeight: "120px" }}
           />
@@ -361,30 +531,31 @@ function InterviewPage() {
               disabled={isLoading || isVoiceLoading || !currentQuestion?.question}
               className="btn-primary flex-1 py-3"
             >
-              {isLoading ? "Evaluating…" : "Submit Answer"}
+              {isLoading ? "Thinking..." : "Send Answer"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Post-evaluation CTA */}
       {latestFeedback && typeof latestFeedback.score === "number" && (
         <div
           className="fade-up rounded-2xl p-5 flex items-center justify-between"
           style={{ background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.2)" }}
         >
           <div>
-            <p className="text-sm font-semibold" style={{ color: "#22d3ee" }}>Answer evaluated</p>
+            <p className="text-sm font-semibold" style={{ color: "#22d3ee" }}>
+              Last answer evaluated
+            </p>
             <p className="text-xs mt-0.5" style={{ color: "#3d6080" }}>
               Score: <strong style={{ color: "#e2f0ff" }}>{latestFeedback.score}</strong>/100
             </p>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => navigate("/feedback")} className="btn-primary text-sm px-4 py-2">
-              View Feedback
+              View Detailed Feedback
             </button>
-            <button type="button" onClick={handleGenerateQuestion} className="btn-ghost text-sm px-4 py-2">
-              Next Question
+            <button type="button" onClick={() => navigate("/summary")} className="btn-ghost text-sm px-4 py-2">
+              End Session
             </button>
           </div>
         </div>

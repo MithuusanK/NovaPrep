@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import {
+  conversationTurn,
   evaluateAnswer,
   generateFinalSummary,
   generateQuestion,
@@ -49,6 +50,11 @@ export function InterviewProvider({ children }) {
         interviewType: setup.interviewType,
         difficulty: setup.difficulty,
         previousQuestions: session.qaHistory.map((item) => item.question),
+        conversationHistory: session.qaHistory.map((item, index) => ({
+          question: item.question,
+          answer: item.answer,
+          score: session.evaluations[index]?.score
+        })),
         parsedResume: setup.parsedResume || null
       });
 
@@ -110,6 +116,60 @@ export function InterviewProvider({ children }) {
     }
   }
 
+  async function requestConversationTurn({ question, answer }) {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const conversationHistory = session.qaHistory.map((item, index) => ({
+        question: item.question,
+        answer: item.answer,
+        score: session.evaluations[index]?.score
+      }));
+
+      const result = await conversationTurn({
+        role: setup.role,
+        interviewType: setup.interviewType,
+        difficulty: setup.difficulty,
+        question,
+        answer,
+        conversationHistory,
+        parsedResume: setup.parsedResume || null
+      });
+
+      const evaluation = result?.evaluation || null;
+      const nextQuestion = result?.nextQuestion || null;
+      const interviewerResponse = String(result?.interviewerResponse || "").trim();
+
+      if (evaluation) {
+        setLatestFeedback(evaluation);
+      }
+
+      setSession((prev) => ({
+        qaHistory: [
+          ...prev.qaHistory,
+          {
+            question,
+            answer,
+            interviewerResponse
+          }
+        ],
+        evaluations: evaluation ? [...prev.evaluations, evaluation] : prev.evaluations
+      }));
+
+      if (nextQuestion) {
+        setCurrentQuestion(nextQuestion);
+      }
+
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function requestResumeParsing({ resumeText, resumeFile, targetRoleHint }) {
     setIsLoading(true);
     setApiError("");
@@ -159,6 +219,7 @@ export function InterviewProvider({ children }) {
       apiError,
       requestQuestion,
       requestAnswerEvaluation,
+      requestConversationTurn,
       requestFinalSummary,
       addCompletedAnswer,
       requestResumeParsing

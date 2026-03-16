@@ -36,9 +36,37 @@ const TOPIC_GUIDANCE = {
   mixed: "Mix behavioral and technical questions appropriate for the role."
 };
 
-export function buildGenerateQuestionPrompt({ role, interviewType, difficulty, previousQuestions, parsedResume }) {
+function formatConversationHistory(conversationHistory = []) {
+  if (!Array.isArray(conversationHistory) || conversationHistory.length === 0) {
+    return "No previous Q&A turns.";
+  }
+
+  return conversationHistory
+    .slice(-3)
+    .map((turn, index) => {
+      const question = String(turn?.question || "").trim();
+      const answer = String(turn?.answer || "").trim();
+      const score = typeof turn?.score === "number" ? turn.score : null;
+      const scoreLine = score === null ? "" : `\nScore: ${score}/100`;
+
+      return `Turn ${index + 1}:\nInterviewer question: ${question || "N/A"}\nCandidate answer: ${
+        answer || "N/A"
+      }${scoreLine}`;
+    })
+    .join("\n\n");
+}
+
+export function buildGenerateQuestionPrompt({
+  role,
+  interviewType,
+  difficulty,
+  previousQuestions,
+  parsedResume,
+  conversationHistory = []
+}) {
   const resumeContext = parsedResume ? JSON.stringify(parsedResume) : "No parsed resume provided.";
   const topicGuidance = TOPIC_GUIDANCE[interviewType] || TOPIC_GUIDANCE.mixed;
+  const conversationHistoryText = formatConversationHistory(conversationHistory);
 
   return `
 You are an expert technical interview coach at a top-tier tech company (Google, Meta, Amazon, etc.).
@@ -53,6 +81,9 @@ ${topicGuidance}
 Parsed resume context (optional):
 ${resumeContext}
 
+Recent interview conversation context:
+${conversationHistoryText}
+
 Avoid repeating these previous questions:
 ${JSON.stringify(previousQuestions)}
 
@@ -65,6 +96,9 @@ Return JSON only using this exact schema:
 
 Rules:
 - Question must be specific and realistic for a ${difficulty}-level ${role} candidate.
+- If conversation context exists, prefer a natural follow-up question that builds on the candidate's latest answer.
+- Follow-up should feel conversational but still assess a clear skill.
+- The question must still be understandable as a standalone question.
 - focusArea should name the specific skill or concept being tested.
 - expectedAnswerStyle should describe what a strong answer looks like (e.g., "STAR method with measurable outcomes", "pseudocode with complexity analysis").
 - Tone should be professional and conversational.

@@ -30,7 +30,12 @@ export async function parseResumeProfile(input) {
 }
 
 export async function generateQuestionFeedback(input) {
-  const prompt = buildGenerateQuestionPrompt(input);
+  const prompt = buildGenerateQuestionPrompt({
+    ...input,
+    conversationHistory: Array.isArray(input?.conversationHistory)
+      ? input.conversationHistory
+      : []
+  });
 
   return invokeNovaJson({
     prompt,
@@ -68,6 +73,64 @@ export async function evaluateAnswerFeedback(input) {
       }
     }
   });
+}
+
+function toConversationSnippet(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return "";
+  return clean.endsWith(".") ? clean : `${clean}.`;
+}
+
+function buildInterviewerResponse({ evaluation, nextQuestion }) {
+  const primaryStrength = toConversationSnippet(evaluation?.strengths?.[0]);
+  const primaryWeakness = toConversationSnippet(evaluation?.weaknesses?.[0]);
+  const nextFocus = String(nextQuestion?.focusArea || "").trim();
+
+  const opener = "Thanks, that is helpful context.";
+  const strengthLine = primaryStrength
+    ? `You did well on ${primaryStrength.charAt(0).toLowerCase()}${primaryStrength.slice(1)}`
+    : "";
+  const coachingLine = primaryWeakness
+    ? `To strengthen your next answer, focus on ${primaryWeakness.charAt(0).toLowerCase()}${primaryWeakness.slice(1)}`
+    : "";
+  const transitionLine = nextFocus
+    ? `Let us go deeper on ${nextFocus}.`
+    : "Let us go a level deeper with a follow-up question.";
+
+  return [opener, strengthLine, coachingLine, transitionLine].filter(Boolean).join(" ");
+}
+
+export async function processConversationTurn(input) {
+  const evaluation = await evaluateAnswerFeedback(input);
+
+  const existingConversationHistory = Array.isArray(input?.conversationHistory)
+    ? input.conversationHistory
+    : [];
+
+  const updatedConversationHistory = [
+    ...existingConversationHistory,
+    {
+      question: input.question,
+      answer: input.answer,
+      score: typeof evaluation?.score === "number" ? evaluation.score : undefined
+    }
+  ];
+
+  const previousQuestions = updatedConversationHistory
+    .map((turn) => String(turn?.question || "").trim())
+    .filter(Boolean);
+
+  const nextQuestion = await generateQuestionFeedback({
+    ...input,
+    previousQuestions,
+    conversationHistory: updatedConversationHistory
+  });
+
+  return {
+    interviewerResponse: buildInterviewerResponse({ evaluation, nextQuestion }),
+    evaluation,
+    nextQuestion
+  };
 }
 
 export async function generateFinalSummaryFeedback(input) {

@@ -29,6 +29,10 @@ export function evaluateAnswer(payload) {
   return postJson("/api/evaluate-answer", payload);
 }
 
+export function conversationTurn(payload) {
+  return postJson("/api/conversation-turn", payload);
+}
+
 export function generateFinalSummary(payload) {
   return postJson("/api/final-summary", payload);
 }
