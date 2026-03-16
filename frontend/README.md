@@ -1,38 +1,11 @@
 # NovaPrep Frontend
 
-React + Tailwind starter app for NovaPrep.
+See the [main README](../README.md) for complete setup and run instructions.
 
-## Quick Start
+## Quick Reference
 
-1. Install dependencies:
+- **Start**: `npm run dev`
+- **Port**: `http://localhost:5173`
+- **Build**: `npm run build`
+- **Features**: React + Vite + Tailwind CSS
 
-```bash
-npm install
-```
-
-2. Create env file:
-
-```bash
-copy .env.example .env
-```
-
-3. Start the app:
-
-```bash
-npm run dev
-```
-
-Frontend runs on `http://localhost:5173` by default.
-
-## Notes
-
-- API calls will target `/api`, proxied to `http://localhost:4000`.
-- Step 3 includes routing and starter pages.
-- API integration begins in Step 4.
-- Setup page supports optional resume parsing:
-  - paste resume text, or
-  - upload `.pdf` / `.txt`
-- Voice mode MVP:
-  - AI speech output via Nova Sonic (`/api/voice/speak`)
-  - user speech transcription via Nova Sonic (`/api/voice/transcribe`)
-  - browser mic capture still requires a modern browser (Chrome/Edge recommended)
