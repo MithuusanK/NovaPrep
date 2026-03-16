@@ -77,6 +77,9 @@ function SetupPage() {
           >
             <option value="behavioral">Behavioral</option>
             <option value="technical">Technical</option>
+            <option value="system design">System Design</option>
+            <option value="data structures & algorithms">Data Structures &amp; Algorithms</option>
+            <option value="product sense">Product Sense</option>
             <option value="mixed">Mixed</option>
           </select>
         </div>

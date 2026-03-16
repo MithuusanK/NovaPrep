@@ -293,8 +293,20 @@ function buildSessionEvents({
 }
 
 function getMockSpeechBase64() {
-  const samples = 24000 / 3; // ~333ms
-  const pcmBuffer = Buffer.alloc(samples * 2); // silent PCM16 mono
+  const sampleRate = 24000;
+  const durationMs = 600;
+  const frequency = 440;
+  const samples = Math.floor((sampleRate * durationMs) / 1000);
+  const pcmBuffer = Buffer.alloc(samples * 2);
+  const fadeFrames = Math.floor(sampleRate * 0.04); // 40ms fade in/out
+
+  for (let i = 0; i < samples; i++) {
+    const envelope = Math.min(i / fadeFrames, 1, (samples - i) / fadeFrames);
+    const amplitude = 0.3 * envelope * Math.sin(2 * Math.PI * frequency * (i / sampleRate));
+    const sample = Math.max(-32768, Math.min(32767, Math.round(amplitude * 32767)));
+    pcmBuffer.writeInt16LE(sample, i * 2);
+  }
+
   return pcmBuffer.toString("base64");
 }
 
